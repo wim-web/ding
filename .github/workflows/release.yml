@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build release assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: "1.26.2"
+          cache: false
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build archives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+(\.[0-9]+){1,2}([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "RELEASE_TAG must look like v1.2.3: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+
+          commit="$(git rev-parse HEAD)"
+          build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          ldflags="-s -w -X main.version=${RELEASE_TAG} -X main.commit=${commit} -X main.date=${build_date}"
+
+          mkdir -p dist
+
+          while read -r goos goarch binary; do
+            target_dir="dist/ding_${goos}_${goarch}"
+            mkdir -p "${target_dir}"
+            CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" go build -trimpath -ldflags "${ldflags}" -o "${target_dir}/${binary}" .
+            tar -C "${target_dir}" -czf "dist/ding_${goos}_${goarch}.tar.gz" "${binary}"
+          done <<'TARGETS'
+          darwin amd64 ding
+          darwin arm64 ding
+          linux amd64 ding
+          linux arm64 ding
+          windows amd64 ding.exe
+          windows arm64 ding.exe
+          TARGETS
+
+          cd dist
+          sha256sum ding_*.tar.gz > checksums.txt
+
+      - name: Publish GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" dist/ding_*.tar.gz dist/checksums.txt --clobber
+          else
+            gh release create "${RELEASE_TAG}" dist/ding_*.tar.gz dist/checksums.txt --title "${RELEASE_TAG}" --generate-notes
+          fi
