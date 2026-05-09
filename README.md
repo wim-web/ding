@@ -190,3 +190,7 @@ Build:
 ```sh
 go build -o ding .
 ```
+
+## License
+
+MIT
