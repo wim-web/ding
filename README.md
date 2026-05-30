@@ -127,6 +127,9 @@ Webhook URLs are not printed by `ding list`, `ding test`, or send failures.
 {"content":"hello"}
 ```
 
+`--body` and stdin body input are checked before sending because Discord
+`content` is limited to 2000 characters.
+
 `--json`, `--json-file`, and `--json -` send the raw JSON payload as-is after light validation.
 
 Validation checks:

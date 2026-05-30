@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -32,6 +33,7 @@ const (
 const (
 	defaultGitHubAPIBaseURL = "https://api.github.com"
 	defaultReleaseRepo      = "wim-web/ding"
+	discordContentLimit     = 2000
 	maxReleaseAssetSize     = 100 << 20
 )
 
@@ -461,6 +463,9 @@ func (a *app) stdinBodyPayload() ([]byte, error) {
 }
 
 func bodyPayload(body string) ([]byte, error) {
+	if count := utf8.RuneCountInString(body); count > discordContentLimit {
+		return nil, fmt.Errorf("Discord content limit exceeded: %d > %d", count, discordContentLimit)
+	}
 	return json.Marshal(struct {
 		Content string `json:"content"`
 	}{Content: body})

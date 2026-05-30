@@ -177,6 +177,44 @@ func TestJSONValidation(t *testing.T) {
 	}
 }
 
+func TestBodyPayloadRejectsDiscordContentOverLimit(t *testing.T) {
+	home := t.TempDir()
+	var requestCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	a, _, stderr := newTestApp(t, home, "", false, server.Client())
+	if code := a.run([]string{"add", "discord", "--name", "github_pr_auto", "--webhook-url", server.URL}); code != exitOK {
+		t.Fatalf("add exit = %d, stderr = %s", code, stderr.String())
+	}
+
+	longBody := strings.Repeat("あ", 2001)
+	stderr.Reset()
+	code := a.run([]string{"github_pr_auto", "--body", longBody})
+	if code != exitUsage {
+		t.Fatalf("send exit = %d, want %d; stderr = %s", code, exitUsage, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "Discord content limit exceeded: 2001 > 2000") {
+		t.Fatalf("stderr = %q, want content limit error", stderr.String())
+	}
+
+	stdinApp, _, stdinErr := newTestApp(t, home, longBody, true, server.Client())
+	code = stdinApp.run([]string{"github_pr_auto"})
+	if code != exitUsage {
+		t.Fatalf("stdin body exit = %d, want %d; stderr = %s", code, exitUsage, stdinErr.String())
+	}
+	if !strings.Contains(stdinErr.String(), "Discord content limit exceeded: 2001 > 2000") {
+		t.Fatalf("stdin stderr = %q, want content limit error", stdinErr.String())
+	}
+
+	if requestCount != 0 {
+		t.Fatalf("request count = %d, want 0", requestCount)
+	}
+}
+
 func TestInvalidJSONExitDoesNotEchoPayload(t *testing.T) {
 	home := t.TempDir()
 	a, _, stderr := newTestApp(t, home, "", false, nil)
