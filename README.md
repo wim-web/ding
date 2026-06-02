@@ -1,8 +1,8 @@
 # ding
 
-`ding` is a small Go CLI for sending notifications to saved Discord Incoming Webhooks.
+`ding` is a small Go CLI for sending notifications to saved Discord and Slack Incoming Webhooks.
 
-It stores named Discord webhook URLs locally, then sends either a plain message body or a raw Discord webhook JSON payload from the command line.
+It stores named webhook URLs locally, each tagged with a provider (`discord` or `slack`), then sends either a plain message body or a raw webhook JSON payload from the command line.
 
 ## Install
 
@@ -27,58 +27,52 @@ ding version
 
 ## Quick Start
 
-Add a Discord Incoming Webhook:
+Add an Incoming Webhook (the provider is fixed at this point):
 
 ```sh
 ding add discord --name github_pr_auto --webhook-url <url>
+ding add slack   --name alerts         --webhook-url <url>
 ```
 
-List saved channels:
+List saved channels (shows the provider, never the URL):
 
 ```sh
 ding list
 ```
 
-Send a plain message:
+Send a plain message — `ding` formats it for the channel's provider, so you
+only ever name the channel:
 
 ```sh
-ding github_pr_auto --body "hello"
+ding github_pr_auto --body "hello"   # -> {"content":"hello"} (discord)
+ding alerts --body "hello"           # -> {"text":"hello"}    (slack)
 ```
 
 Send stdin as a plain message:
 
 ```sh
-echo "hello" | ding github_pr_auto
+echo "hello" | ding alerts
 ```
 
-Send raw Discord webhook JSON:
-
-```sh
-ding github_pr_auto --json '{"content":"hello"}'
-```
-
-Send an embed payload:
+Send raw provider JSON (must match the channel's provider dialect):
 
 ```sh
 ding github_pr_auto --json '{"embeds":[{"title":"done","color":3066993}]}'
+ding alerts --json '{"blocks":[{"type":"section","text":{"type":"mrkdwn","text":"*done*"}}]}'
 ```
 
-Send JSON from a file:
+Send JSON from a file or stdin:
 
 ```sh
-ding github_pr_auto --json-file payload.json
-```
-
-Send JSON from stdin:
-
-```sh
-cat payload.json | ding github_pr_auto --json -
+ding alerts --json-file payload.json
+cat payload.json | ding alerts --json -
 ```
 
 ## Commands
 
 ```sh
 ding add discord --name <name> --webhook-url <url>
+ding add slack   --name <name> --webhook-url <url>
 ding list
 ding remove <name>
 ding test <name>
@@ -88,11 +82,14 @@ ding <name> --json '{"content":"hello"}'
 ding <name> --json-file payload.json
 cat payload.json | ding <name> --json -
 
-ding schema discord
-ding example discord
+ding schema <discord|slack>
+ding example <discord|slack>
 ding version
 ding update
 ```
+
+The provider is chosen once, at `add` time. When sending you only name the
+channel — `ding` looks up its provider from the config.
 
 ## Config
 
@@ -110,6 +107,10 @@ Example:
     "github_pr_auto": {
       "type": "discord",
       "webhook_url": "https://discord.com/api/webhooks/..."
+    },
+    "alerts": {
+      "type": "slack",
+      "webhook_url": "https://hooks.slack.com/services/..."
     }
   }
 }
@@ -121,31 +122,42 @@ Webhook URLs are not printed by `ding list`, `ding test`, or send failures.
 
 ## JSON Payloads
 
-`--body` is converted to a Discord webhook JSON payload:
+`--body` (and stdin body input) is converted to the channel provider's plain
+message payload:
 
-```json
-{"content":"hello"}
-```
+| Provider | Payload | Notes |
+| --- | --- | --- |
+| discord | `{"content":"hello"}` | checked before sending — `content` is limited to 2000 characters |
+| slack | `{"text":"hello"}` | no client-side length check |
 
-`--body` and stdin body input are checked before sending because Discord
-`content` is limited to 2000 characters.
-
-`--json`, `--json-file`, and `--json -` send the raw JSON payload as-is after light validation.
+`--json`, `--json-file`, and `--json -` send the raw JSON payload as-is after
+light, provider-specific validation.
 
 Validation checks:
 
 - the payload parses as JSON
 - the root value is an object
-- it includes at least one of `content`, `embeds`, `components`, `poll`, or `attachments`
-- if `embeds` exists, it is an array
+- it includes at least one allowed top-level key for the channel's provider:
+  - discord: `content`, `embeds`, `components`, `poll`, or `attachments` (and `embeds`, if present, is an array)
+  - slack: `text`, `blocks`, or `attachments` (and `blocks`/`attachments`, if present, are arrays)
 
-Anything more detailed is left to Discord's API.
+Anything more detailed is left to the provider's API.
+
+If a raw payload fails validation but would be valid for the *other* provider,
+`ding` hints at the likely mismatch:
+
+```text
+$ ding alerts --json '{"content":"hi"}'      # alerts is a slack channel
+invalid JSON: payload must include one of text, blocks, attachments
+hint: this looks like a discord payload, but "alerts" is a slack channel
+      try: ding schema slack
+```
 
 Useful references:
 
 ```sh
-ding schema discord
-ding example discord
+ding schema slack
+ding example slack
 ```
 
 ## Updating
@@ -166,17 +178,16 @@ ding update
 | 1 | usage error |
 | 2 | config error or channel not found |
 | 3 | invalid JSON |
-| 4 | Discord API error |
+| 4 | webhook API error |
 | 5 | network error |
 
 ## Scope
 
-`ding` v1 is intentionally small:
+`ding` is intentionally small:
 
-- Discord Incoming Webhooks only
-- no Discord bot tokens
-- no non-Discord providers
-- no embed DSL
+- Discord and Slack Incoming Webhooks only
+- no bot tokens
+- no embed / Block Kit DSL
 - no daemon, queue, or retry worker
 - no config encryption
 
