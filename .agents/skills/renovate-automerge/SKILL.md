@@ -72,7 +72,10 @@ description: このリポジトリの Renovate PR を調査し、repo固有ル�
 - `statusCheckRollup` の check が 1 件以上存在し、すべて成功している。
 - changed files が `go.mod`、`go.sum`、`.github/workflows/test.yml`、`.github/workflows/release.yml`、`renovate.json` の範囲に収まる。
 - Go toolchain の patch update。
-- `.github/workflows/test.yml` / `.github/workflows/release.yml` の `go-version` patch update。
+- Go toolchain の minor updateは、以下をすべて満たす場合に限り許可する。
+  - 変更対象が `.github/workflows/test.yml` と `.github/workflows/release.yml` の `go-version` の明示的な version pin だけであり、両workflowの値が同じ対象バージョンになる。`go.mod` の `go` directive やその他の設定変更を伴わない。
+  - PR本文と差分から対象バージョンと更新種別が明確で、source、test、README、LICENSE、migration、infra、deploy、runtime設定、依存関係、release asset naming、workflowのtrigger・permissions・concurrency・publish command・ldflags・Go target matrixを変更しない。
+  - Go公式の release notes / release history と、PR本文に示された upstream release notes / changelog / migration guide を確認し、breaking change、deprecated API、runtime behavior / requirement、OS / architecture requirement の有無とこのrepoへの影響を評価する。影響がない、またはこのrepoのCI・build・CLI runtime・配布対象と両立すると確認できた場合だけ許可し、判断不能または危険な影響が残る場合は許可しない。
 - `actions/checkout` または `actions/setup-go` の GitHub Actions patch / minor update。
 - GitHub Actions 更新では、`uses:` が SHA 固定を維持し、右側コメントの tag も更新されている。
 - `renovate.json` の更新は、`local>wim-web/renovate-config` 参照を維持したままの schema / formatting / patch-level metadata 更新に限る。
@@ -86,15 +89,15 @@ description: このリポジトリの Renovate PR を調査し、repo固有ル�
 - base branch が `main` ではない。
 - head branch が `renovate/*` ではない。
 - major update。
-- Go toolchain の minor update。
+- Go toolchain の minor updateで、上記の限定条件を一つでも満たさないもの。特に公式情報で確認したbreaking change、deprecated API、runtime behavior / requirement、OS / architecture requirementのrepo影響を否定できないもの。
 - `go.mod` の module path 変更。
 - 新しい runtime dependency / external module を追加する PR。
 - `go.sum` に新しい dependency が追加され、標準ライブラリのみという前提が崩れる PR。
 - source code、test code、README、LICENSE、release asset naming、config path、Discord API behavior を変更する PR。
-- `.github/workflows/*` の release trigger、permissions、concurrency、publish command、asset naming、ldflags、Go target matrix を変更する PR。
+- `.github/workflows/*` の release trigger、permissions、concurrency、publish command、asset naming、ldflags、Go target matrix を変更する PR（Go minor updateで許可する `go-version` pinだけの差分を除く）。
 - `renovate.json` が `local>wim-web/renovate-config` を外す、別 preset を追加する、automerge 挙動を変える PR。
 - Docker、infra、deploy、database migration を追加または変更する PR。
-- breaking changes、deprecated API、runtime 要件変更、設定変更、release workflow 互換性問題の可能性が残る PR。
+- breaking changes、deprecated API、runtime behavior / 要件、OS / architecture要件、設定変更、release workflow互換性問題について、公式情報の確認とrepo内影響範囲の評価で安全性を確定できないPR。
 - changelog / release notes / migration guide を確認できず、影響範囲を判断できない PR。
 - failed / pending / missing checks がある PR。
 - merge conflict がある PR。
