@@ -6,12 +6,7 @@ It stores named webhook URLs locally, each tagged with a provider (`discord` or 
 
 ## Install
 
-**Security notice (2026-10-21):** The latest published release, v0.2.0, was
-built with Go 1.26.3 and predates the eMudhra intermediate CA mitigation.
-Until a rebuilt release is published, use the [source build instructions](#development)
-with Go 1.27.3 or newer. See the [rebuild and distribution checklist](docs/emudhra-rebuild.md).
-
-After a patched release is published, download the latest release for your platform from:
+Download the latest release for your platform from:
 
 https://github.com/wim-web/ding/releases/latest
 
@@ -19,7 +14,7 @@ For macOS Apple Silicon:
 
 ```sh
 curl -L -o ding_darwin_arm64.tar.gz \
-  https://github.com/wim-web/ding/releases/latest/download/ding_darwin_arm64.tar.gz
+  https://github.com/wim-web/ding/releases/download/v0.1.0/ding_darwin_arm64.tar.gz
 tar -xzf ding_darwin_arm64.tar.gz
 install -m 0755 ding ~/.local/bin/ding
 ```
@@ -167,9 +162,6 @@ ding example slack
 
 ## Updating
 
-Until a patched release is published, `ding update` still installs v0.2.0.
-Use the [source build instructions](#development) and keep that executable until a patched release is available.
-
 Update to the latest GitHub release:
 
 ```sh
@@ -201,34 +193,17 @@ ding update
 
 ## Development
 
-Use Go 1.27.3 or a later patched release for development and distribution.
-The `go 1.22` line in `go.mod` describes the minimum language version; the
-`toolchain` line selects a patched compiler with Go's default automatic
-toolchain selection. An explicit `GOTOOLCHAIN` setting can override it.
-
-From this source checkout, select the patched toolchain explicitly:
-
-```sh
-export GOTOOLCHAIN=go1.27.3
-go version
-```
-
 Run tests:
 
 ```sh
 go test ./...
-go vet ./...
 ```
 
 Build:
 
 ```sh
 go build -o ding .
-go version -m ./ding
 ```
-
-The build information must show `go1.27.3` (or a later patched version).
-Changing `go.mod` or a CI setting does not update an installed binary.
 
 ## License
 
